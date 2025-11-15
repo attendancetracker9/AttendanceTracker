@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { mockApi } from "../api/mockApi";
+import { firebaseApi } from "../api/firebaseApi";
+import { mockApi } from "../api/mockApi"; // Keep for file parsing
 import type {
   Announcement,
   MessageTemplate,
@@ -69,15 +70,26 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [notifications, setNotifications] = useState<NotificationLog[]>([]);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
-  const [settings, setSettings] = useState<ProviderSettings>(mockApi.getSettingsSync());
+  const [settings, setSettings] = useState<ProviderSettings>(firebaseApi.getSettingsSync());
 
   useEffect(() => {
-    mockApi.getInitialData().then((data) => {
+    // Load data from Firebase
+    firebaseApi.getInitialData().then((data) => {
       setStudents(data.students);
       setAnnouncements(data.announcements);
       setNotifications(data.notifications);
       setTemplates(data.templates);
       setSettings(data.settings);
+    }).catch((error) => {
+      console.error("Error loading data from Firebase:", error);
+      // Fallback to mock data if Firebase fails
+      mockApi.getInitialData().then((data) => {
+        setStudents(data.students);
+        setAnnouncements(data.announcements);
+        setNotifications(data.notifications);
+        setTemplates(data.templates);
+        setSettings(data.settings);
+      });
     });
   }, []);
 
@@ -97,7 +109,7 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       settings,
       refreshDashboard: async () => {
         const { students: updatedStudents, announcements: updatedAnnouncements, notifications: updatedNotifications } =
-          await mockApi.getInitialData();
+          await firebaseApi.getInitialData();
         setStudents(updatedStudents);
         setAnnouncements(updatedAnnouncements);
         setNotifications(updatedNotifications);
@@ -107,6 +119,7 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         saveRosterToStorage(null);
       },
       loadRosterPreview: async (file) => {
+        // File parsing stays client-side (uses mockApi)
         const result = await mockApi.parseRosterFile(file);
         return result;
       },
@@ -117,57 +130,59 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (!rosterUpload) return;
         // Remap from original rows to preserve data integrity
         // Note: validation should be done by the caller if needed
-        const remapped = await mockApi.mapRosterColumns(mapping, rosterUpload.originalRows);
+        const remapped = await firebaseApi.mapRosterColumns(mapping, rosterUpload.originalRows);
         setRosterUpload({ ...rosterUpload, mapping, rows: remapped });
       },
       updateRosterRows: (rows) => {
         if (!rosterUpload) return;
         setRosterUpload({ ...rosterUpload, rows });
       },
-      mapRosterColumns: (mapping, rows) => mockApi.mapRosterColumns(mapping, rows),
+      mapRosterColumns: (mapping, rows) => firebaseApi.mapRosterColumns(mapping, rows),
       saveRoster: async (rows) => {
-        const result = await mockApi.uploadRoster(rows);
-        setStudents(result.students);
+        const result = await firebaseApi.uploadRoster(rows);
+        const allStudents = await firebaseApi.getInitialData();
+        setStudents(allStudents.students);
         return { successCount: result.successCount, failureCount: result.failureCount };
       },
       createAnnouncement: async (payload) => {
-        const created = await mockApi.createAnnouncement(payload);
+        const created = await firebaseApi.createAnnouncement(payload);
         setAnnouncements((prev) => [created, ...prev]);
         return created;
       },
       submitFacultyAnnouncement: async (payload) => {
-        const created = await mockApi.submitFacultyAnnouncement(payload);
+        const created = await firebaseApi.submitFacultyAnnouncement(payload);
         setAnnouncements((prev) => [created, ...prev]);
         return created;
       },
       approveAnnouncement: async (id) => {
-        const updated = await mockApi.approveAnnouncement(id);
+        const updated = await firebaseApi.approveAnnouncement(id);
         setAnnouncements((prev) => prev.map((item) => (item.id === id ? updated : item)));
-        setNotifications(await mockApi.listNotifications());
+        const notifications = await firebaseApi.listNotifications();
+        setNotifications(notifications);
         return updated;
       },
       rejectAnnouncement: async (id, reason) => {
-        const updated = await mockApi.rejectAnnouncement(id, reason);
+        const updated = await firebaseApi.rejectAnnouncement(id, reason);
         setAnnouncements((prev) => prev.map((item) => (item.id === id ? updated : item)));
         return updated;
       },
       resendNotification: async (id) => {
-        const updated = await mockApi.resendNotification(id);
+        const updated = await firebaseApi.resendNotification(id);
         setNotifications((prev) => prev.map((item) => (item.id === id ? updated : item)));
         return updated;
       },
       bulkResend: async (ids) => {
-        const updated = await mockApi.bulkResend(ids);
+        const updated = await firebaseApi.bulkResend(ids);
         setNotifications((prev) => prev.map((item) => updated.find((entry) => entry.id === item.id) ?? item));
         return updated;
       },
       updateSettings: async (next) => {
-        const updated = await mockApi.updateSettings(next);
+        const updated = await firebaseApi.updateSettings(next);
         setSettings(updated);
         return updated;
       },
       updateTemplate: async (key, content) => {
-        const updated = await mockApi.updateTemplate(key, content);
+        const updated = await firebaseApi.updateTemplate(key, content);
         setTemplates((prev) => prev.map((template) => (template.key === updated.key ? updated : template)));
         return updated;
       }

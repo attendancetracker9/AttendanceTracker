@@ -6,6 +6,8 @@ import "./index.css";
 import { ThemeProvider } from "./context/ThemeContext";
 import { ToastProvider } from "./context/ToastContext";
 import { ApiProvider } from "./context/ApiContext";
+// Initialize Firebase
+import "./config/firebase";
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

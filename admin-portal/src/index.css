@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-primary: 236 72 153;
+  --color-secondary: 219 39 119;
+  --color-accent: 59 130 246;
+  --color-muted: 148 163 184;
+  --color-surface: 15 23 42;
+  --color-ring: 236 72 153;
+  --bg-base: 15 23 42;
+  --bg-elevated: 30 41 59;
+  --text-primary: 248 250 252;
+  --text-muted: 148 163 184;
+}
+
+body {
+  @apply bg-[rgb(var(--bg-base))] text-[rgb(var(--text-primary))] font-sans antialiased;
+}
+
+.surface-card {
+  @apply bg-[rgb(var(--bg-elevated))] text-[rgb(var(--text-primary))] shadow-soft rounded-3xl;
+}
+
+.focus-ring {
+  @apply outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[rgb(var(--bg-base))];
+}
+
+::selection {
+  background-color: rgba(236, 72, 153, 0.5);
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: rgba(148, 163, 184, 0.6);
+  border-radius: 9999px;
+}
+

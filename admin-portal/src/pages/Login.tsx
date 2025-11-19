@@ -47,7 +47,7 @@ const Login: React.FC = () => {
   const navigate = useNavigate();
   const { push: pushToast } = useToast();
   const { palette, mode, availablePalettes } = useTheme();
-  const { signIn, signInWithGoogle, signInWithPhone, verifyPhoneOTP, resetPassword: firebaseResetPassword } = useAuth();
+  const { signIn, signUp, signInWithGoogle, signInWithPhone, verifyPhoneOTP, resetPassword: firebaseResetPassword } = useAuth();
 
   const [loginMethod, setLoginMethod] = useState<LoginMethod>("password");
   const [role, setRole] = useState<UserRole>("admin");
@@ -68,6 +68,8 @@ const Login: React.FC = () => {
   const [resetEmail, setResetEmail] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
   const [phoneConfirmation, setPhoneConfirmation] = useState<ConfirmationResult | null>(null);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [name, setName] = useState("");
 
   const accessCodeRef = useRef<HTMLInputElement>(null);
   const identifierRef = useRef<HTMLInputElement>(null);
@@ -112,8 +114,8 @@ const Login: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
 
-    // Access Code validation for Admin
-    if (role === "admin" && !accessCode.trim()) {
+    // Access Code validation for Admin - Only during Sign In, not Sign Up
+    if (!isSignUp && role === "admin" && !accessCode.trim()) {
       newErrors.accessCode = "Access code is required";
     }
 
@@ -125,6 +127,9 @@ const Login: React.FC = () => {
       }
       if (!password) {
         newErrors.password = "Password is required";
+      }
+      if (isSignUp && !name.trim()) {
+        newErrors.general = "Name is required for registration";
       }
     } else {
       if (!phone.trim()) {
@@ -188,14 +193,35 @@ const Login: React.FC = () => {
 
       try {
         if (loginMethod === "password") {
-          // Email/Password login with Firebase
-          await signIn(identifier, password, role, role === "admin" ? accessCode : undefined);
-          
-          if (rememberMe) {
-            localStorage.setItem("rememberMe", "true");
+          if (isSignUp) {
+            // Create new account - Only "others" role allowed (admin accounts are managed by developers)
+            await signUp(identifier, password, "others", undefined, name || undefined);
+            pushToast({ status: "success", title: "Account created!", description: "Welcome! Your account has been created successfully" });
+            // Don't navigate - users with "others" role should not access admin console
+            // They should contact admin or use a different portal
+            pushToast({ 
+              status: "info", 
+              title: "Account Created", 
+              description: "Your account has been created. Please contact your administrator for access to the admin console." 
+            });
+            // Reset form
+            setIsSignUp(false);
+            setIdentifier("");
+            setPassword("");
+            setName("");
+            return; // Don't navigate to dashboard
+          } else {
+            // Sign in to existing account
+            await signIn(identifier, password, role, role === "admin" ? accessCode : undefined);
+            if (rememberMe) {
+              localStorage.setItem("rememberMe", "true");
+            }
+            pushToast({ status: "success", title: "Welcome back!", description: "Successfully signed in" });
+            // Wait a moment for auth state to update, then navigate to dashboard
+            setTimeout(() => {
+              navigate("/", { replace: true });
+            }, 100);
           }
-          pushToast({ status: "success", title: "Welcome back!", description: "Successfully signed in" });
-          navigate("/dashboard");
         } else {
           // Phone OTP login with Firebase
           if (!phoneConfirmation) {
@@ -204,7 +230,10 @@ const Login: React.FC = () => {
           }
           await verifyPhoneOTP(phoneConfirmation, otp);
           pushToast({ status: "success", title: "Welcome!", description: "Successfully signed in" });
-          navigate("/dashboard");
+          // Wait a moment for auth state to update, then navigate to dashboard
+          setTimeout(() => {
+            navigate("/", { replace: true });
+          }, 100);
         }
       } catch (error: any) {
         const errorMessage = error.message || "An error occurred. Please try again.";
@@ -223,7 +252,7 @@ const Login: React.FC = () => {
         setLoading(false);
       }
     },
-    [loginMethod, identifier, password, phone, otp, role, accessCode, rememberMe, failedAttempts, lockedUntil, phoneConfirmation, signIn, verifyPhoneOTP, navigate, pushToast]
+    [loginMethod, identifier, password, phone, otp, role, accessCode, rememberMe, failedAttempts, lockedUntil, phoneConfirmation, isSignUp, name, signIn, signUp, verifyPhoneOTP, navigate, pushToast]
   );
 
   // Password strength indicator (client-side)
@@ -329,7 +358,9 @@ const Login: React.FC = () => {
           className="w-full max-w-md"
         >
           <div className="rounded-2xl border border-white/5 bg-[rgb(var(--bg-elevated))] p-8 shadow-soft">
-            <h2 className="text-2xl font-bold text-[rgb(var(--text-primary))] mb-6">Sign In</h2>
+            <h2 className="text-2xl font-bold text-[rgb(var(--text-primary))] mb-6">
+              {isSignUp ? "Create Account" : "Sign In"}
+            </h2>
 
             {/* Login Method Tabs */}
             <div className="flex gap-2 mb-6 p-1 rounded-xl bg-[rgb(var(--bg-base))]" role="tablist">
@@ -377,43 +408,45 @@ const Login: React.FC = () => {
               </button>
             </div>
 
-            {/* Role Selector */}
-            <div className="flex gap-2 mb-6 p-1 rounded-xl bg-[rgb(var(--bg-base))]" role="radiogroup" aria-label="User role">
-              <button
-                type="button"
-                onClick={() => {
-                  setRole("admin");
-                  setAccessCode(""); // Reset access code when switching roles
-                }}
-                className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  role === "admin"
-                    ? "bg-[rgb(var(--color-primary))] text-[rgb(var(--bg-base))]"
-                    : "text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))]"
-                }`}
-                role="radio"
-                aria-checked={role === "admin"}
-                data-testid="login-role-admin"
-              >
-                Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRole("others");
-                  setAccessCode(""); // Clear access code when switching to others
-                }}
-                className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
-                  role === "others"
-                    ? "bg-[rgb(var(--color-primary))] text-[rgb(var(--bg-base))]"
-                    : "text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))]"
-                }`}
-                role="radio"
-                aria-checked={role === "others"}
-                data-testid="login-role-others"
-              >
-                Others
-              </button>
-            </div>
+            {/* Role Selector - Only show for Sign In, not for Sign Up */}
+            {!isSignUp && (
+              <div className="flex gap-2 mb-6 p-1 rounded-xl bg-[rgb(var(--bg-base))]" role="radiogroup" aria-label="User role">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRole("admin");
+                    setAccessCode(""); // Reset access code when switching roles
+                  }}
+                  className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                    role === "admin"
+                      ? "bg-[rgb(var(--color-primary))] text-[rgb(var(--bg-base))]"
+                      : "text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))]"
+                  }`}
+                  role="radio"
+                  aria-checked={role === "admin"}
+                  data-testid="login-role-admin"
+                >
+                  Admin
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRole("others");
+                    setAccessCode(""); // Clear access code when switching to others
+                  }}
+                  className={`flex-1 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+                    role === "others"
+                      ? "bg-[rgb(var(--color-primary))] text-[rgb(var(--bg-base))]"
+                      : "text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))]"
+                  }`}
+                  role="radio"
+                  aria-checked={role === "others"}
+                  data-testid="login-role-others"
+                >
+                  Others
+                </button>
+              </div>
+            )}
 
             {/* General Error Alert */}
             <AnimatePresence>
@@ -435,8 +468,27 @@ const Login: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               {loginMethod === "password" ? (
                 <>
-                  {/* Access Code field for Admin */}
-                  {role === "admin" && (
+                  {/* Name field for Sign Up */}
+                  {isSignUp && (
+                    <div>
+                      <label htmlFor="name" className="mb-1 block text-sm font-semibold text-[rgb(var(--text-primary))]">
+                        Full Name
+                      </label>
+                      <Input
+                        id="name"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="Enter your full name"
+                        className="w-full"
+                        aria-required="true"
+                        aria-invalid={errors.general ? "true" : "false"}
+                      />
+                    </div>
+                  )}
+
+                  {/* Access Code field for Admin - Only show during Sign In, not Sign Up */}
+                  {!isSignUp && role === "admin" && (
                     <div>
                       <label htmlFor="accessCode" className="block text-sm font-medium text-[rgb(var(--text-primary))] mb-2">
                         Access Code
@@ -702,25 +754,63 @@ const Login: React.FC = () => {
                 {loading ? (
                   <span className="flex items-center gap-2">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    Signing in...
+                    {isSignUp ? "Creating account..." : "Signing in..."}
                   </span>
                 ) : (
-                  "Sign In"
+                  isSignUp ? "Create Account" : "Sign In"
                 )}
               </Button>
+
+              {/* Toggle between Sign In and Sign Up */}
+              <div className="text-center mt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSignUp(!isSignUp);
+                    setErrors({});
+                    setName("");
+                    setAccessCode("");
+                    if (isSignUp) {
+                      setRole("admin"); // Reset to admin for sign in
+                    } else {
+                      setRole("others"); // Set to others for sign up (users can't create admin accounts)
+                    }
+                  }}
+                  className="text-sm text-[rgb(var(--color-primary))] hover:underline"
+                >
+                  {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Create Account"}
+                </button>
+              </div>
             </form>
 
             {/* SSO Section */}
             <div className="mt-6 pt-6 border-t border-white/5">
               <p className="text-xs text-center text-[rgb(var(--text-muted))] mb-3">Or continue with</p>
-              <Button
-                variant="ghost"
-                fullWidth
-                onClick={handleGoogleSignIn}
-                disabled={loading || googleLoading || (lockedUntil !== null && lockedUntil > Date.now())}
-                data-testid="login-google"
-                className="relative"
-              >
+              <div className="flex gap-3">
+                {!isSignUp && (
+                  <Button
+                    variant="ghost"
+                    fullWidth
+                    onClick={() => {
+                      setIsSignUp(true);
+                      setErrors({});
+                      setName("");
+                    }}
+                    disabled={loading || (lockedUntil !== null && lockedUntil > Date.now())}
+                    data-testid="login-create-account"
+                    className="flex-1"
+                  >
+                    Create Account
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  fullWidth
+                  onClick={handleGoogleSignIn}
+                  disabled={loading || googleLoading || (lockedUntil !== null && lockedUntil > Date.now())}
+                  data-testid="login-google"
+                  className={isSignUp ? "w-full" : "flex-1"}
+                >
                 {googleLoading ? (
                   <span className="flex items-center justify-center gap-2">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -750,6 +840,7 @@ const Login: React.FC = () => {
                   </span>
                 )}
               </Button>
+              </div>
             </div>
           </div>
         </motion.div>

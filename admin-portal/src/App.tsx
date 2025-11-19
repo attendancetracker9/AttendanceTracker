@@ -17,7 +17,7 @@ const App: React.FC = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
@@ -45,9 +45,16 @@ const App: React.FC = () => {
   // Redirect to login if not authenticated (except on login page)
   useEffect(() => {
     if (!loading && !user && location.pathname !== "/login") {
-      navigate("/login");
+      navigate("/login", { replace: true });
     }
   }, [user, loading, location.pathname, navigate]);
+
+  // Redirect authenticated users from login page to dashboard
+  useEffect(() => {
+    if (!loading && user && userProfile && userProfile.role === "admin" && location.pathname === "/login") {
+      navigate("/", { replace: true });
+    }
+  }, [user, userProfile, loading, location.pathname, navigate]);
 
   // Show login page without sidebar/nav
   if (location.pathname === "/login") {
@@ -69,6 +76,54 @@ const App: React.FC = () => {
   // Redirect to login if not authenticated
   if (!user) {
     return null;
+  }
+
+  // Check if user has admin role - only admins can access the admin console
+  // Wait for userProfile to load before checking role
+  if (!loading && userProfile) {
+    if (userProfile.role !== "admin") {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-[rgb(var(--bg-base))]">
+          <div className="text-center max-w-md mx-auto p-8">
+            <div className="mb-6">
+              <div className="h-16 w-16 mx-auto mb-4 rounded-full bg-rose-500/20 flex items-center justify-center">
+                <svg className="h-8 w-8 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-[rgb(var(--text-primary))] mb-2">Access Denied</h2>
+              <p className="text-[rgb(var(--text-muted))] mb-6">
+                You don't have permission to access the Admin Console. This area is restricted to administrators only.
+              </p>
+              <p className="text-sm text-[rgb(var(--text-muted))] mb-6">
+                If you need admin access, please contact your administrator or sign in with an admin account and access code.
+              </p>
+              <button
+                onClick={() => {
+                  // Sign out and redirect to login
+                  navigate("/login");
+                }}
+                className="px-6 py-2 rounded-lg bg-[rgb(var(--color-primary))] text-[rgb(var(--bg-base))] font-semibold hover:opacity-90 transition"
+              >
+                Go to Login
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Show loading if userProfile is not loaded yet
+  if (user && !userProfile && !loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[rgb(var(--bg-base))]">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-[rgb(var(--color-primary))] border-t-transparent mx-auto mb-4" />
+          <p className="text-sm text-[rgb(var(--text-muted))]">Loading your profile...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

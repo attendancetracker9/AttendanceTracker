@@ -1,6 +1,7 @@
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
+  ArrowRightOnRectangleIcon,
   BellAlertIcon,
   ClipboardDocumentCheckIcon,
   Cog6ToothIcon,
@@ -11,6 +12,8 @@ import {
 } from "@heroicons/react/24/outline";
 import { motion } from "framer-motion";
 import { clsx } from "clsx";
+import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 const navItems = [
   { label: "Dashboard", to: "/", icon: HomeIcon, hotkey: "G" },
@@ -28,7 +31,23 @@ type SidebarProps = {
   onCloseMobile: () => void;
 };
 
-export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, mobileOpen, onCloseMobile }) => (
+export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, mobileOpen, onCloseMobile }) => {
+  const navigate = useNavigate();
+  const { signOut } = useAuth();
+  const { push } = useToast();
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      push({ status: "success", title: "Signed out", description: "You have been successfully signed out" });
+      navigate("/login");
+      onCloseMobile();
+    } catch (error: any) {
+      push({ status: "error", title: "Error", description: error.message || "Failed to sign out" });
+    }
+  };
+
+  return (
   <>
     <div
       className={clsx(
@@ -107,6 +126,21 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, mobileOpe
             );
           })}
         </ul>
+        {/* Logout Button */}
+        <div className="mt-4 pt-4 border-t border-white/5">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className={clsx(
+              "focus-ring group flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold transition",
+              "text-rose-400 hover:bg-rose-500/20 hover:text-rose-300"
+            )}
+            data-testid="sidebar-logout"
+          >
+            <ArrowRightOnRectangleIcon className="h-5 w-5" />
+            {!collapsed && <span>Log Out</span>}
+          </button>
+        </div>
       </nav>
       <div className="px-4 pb-6">
         <div className="rounded-3xl border border-white/5 bg-white/5 p-4 text-xs text-[rgb(var(--text-muted))]">
@@ -118,5 +152,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, mobileOpe
       </div>
     </aside>
   </>
-);
+  );
+};
 

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { firebaseApi } from "../api/firebaseApi";
 import { mockApi } from "../api/mockApi"; // Keep for file parsing
+import { notificationsService } from "../services/firebaseService";
 import type {
   Announcement,
   MessageTemplate,
@@ -73,24 +74,43 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [settings, setSettings] = useState<ProviderSettings>(firebaseApi.getSettingsSync());
 
   useEffect(() => {
+    let unsubscribe: (() => void) | null = null;
+
     // Load data from Firebase
-    firebaseApi.getInitialData().then((data) => {
-      setStudents(data.students);
-      setAnnouncements(data.announcements);
-      setNotifications(data.notifications);
-      setTemplates(data.templates);
-      setSettings(data.settings);
-    }).catch((error) => {
-      console.error("Error loading data from Firebase:", error);
-      // Fallback to mock data if Firebase fails
-      mockApi.getInitialData().then((data) => {
+    firebaseApi.getInitialData()
+      .then((data) => {
         setStudents(data.students);
         setAnnouncements(data.announcements);
         setNotifications(data.notifications);
         setTemplates(data.templates);
         setSettings(data.settings);
+
+        // Set up real-time listener for notifications (only if Firebase works)
+        try {
+          unsubscribe = notificationsService.subscribeToNotifications((updatedNotifications) => {
+            setNotifications(updatedNotifications);
+          });
+        } catch (error) {
+          console.error("Error setting up notification listener:", error);
+        }
+      })
+      .catch((error) => {
+        console.error("Error loading data from Firebase:", error);
+        // Fallback to mock data if Firebase fails
+        mockApi.getInitialData().then((data) => {
+          setStudents(data.students);
+          setAnnouncements(data.announcements);
+          setNotifications(data.notifications);
+          setTemplates(data.templates);
+          setSettings(data.settings);
+        });
       });
-    });
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   // Persist roster upload state to localStorage whenever it changes

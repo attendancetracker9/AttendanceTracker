@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { BoltIcon, Bars3Icon } from "@heroicons/react/24/outline";
+import { BoltIcon, Bars3Icon, BellIcon } from "@heroicons/react/24/outline";
 import { Button } from "../components/Button";
 import { PaletteSwitcher } from "../components/PaletteSwitcher";
+import { NotificationDropdown } from "../components/NotificationDropdown";
+import { useApi } from "../context/ApiContext";
 
 type TopNavProps = {
   onMenuClick: () => void;
@@ -21,6 +23,15 @@ export const TopNav: React.FC<TopNavProps> = ({ onMenuClick }) => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const pageTitle = titleMap[pathname] ?? "Admin Console";
+  const { notifications } = useApi();
+  const [notificationOpen, setNotificationOpen] = useState(false);
+
+  // Count recent notifications (last 24 hours or unread)
+  const recentCount = notifications.filter((n) => {
+    const notificationTime = new Date(n.timestamp).getTime();
+    const dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    return notificationTime > dayAgo;
+  }).length;
 
   return (
     <header className="sticky top-0 z-40 flex h-20 items-center justify-between border-b border-white/5 bg-[rgb(var(--bg-base))]/80 px-6 backdrop-blur">
@@ -47,6 +58,22 @@ export const TopNav: React.FC<TopNavProps> = ({ onMenuClick }) => {
         </Button>
       </div>
       <div className="flex items-center gap-4">
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setNotificationOpen(!notificationOpen)}
+            className="relative focus-ring inline-flex items-center justify-center rounded-2xl border border-white/5 bg-white/10 p-2.5 text-[rgb(var(--text-primary))] transition hover:bg-white/20"
+            aria-label="View notifications"
+          >
+            <BellIcon className="h-5 w-5" />
+            {recentCount > 0 && (
+              <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-xs font-bold text-white shadow-lg z-10">
+                {recentCount > 9 ? "9+" : recentCount}
+              </span>
+            )}
+          </button>
+          <NotificationDropdown open={notificationOpen} onClose={() => setNotificationOpen(false)} />
+        </div>
         <PaletteSwitcher />
       </div>
     </header>

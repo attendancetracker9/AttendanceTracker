@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { clsx } from "clsx";
 
 type RichTextEditorProps = {
@@ -24,6 +24,15 @@ const ToolbarButton: React.FC<{ label: string; command: string; glyph: string }>
 export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange, placeholder }) => {
   const ref = useRef<HTMLDivElement>(null);
 
+  // Keep DOM in sync when parent supplies a new value (e.g., reset form),
+  // without overwriting user selection on every keystroke.
+  useEffect(() => {
+    if (!ref.current) return;
+    if (ref.current.innerHTML !== value) {
+      ref.current.innerHTML = value || "";
+    }
+  }, [value]);
+
   return (
     <div className="rounded-3xl border border-white/5 bg-surface/80 p-4">
       <div className="flex items-center gap-2">
@@ -38,7 +47,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({ value, onChange,
           !value && "before:text-[rgb(var(--text-muted))] before:content-[attr(data-placeholder)]"
         )}
         contentEditable
-        dangerouslySetInnerHTML={{ __html: value }}
+        suppressContentEditableWarning
+        role="textbox"
+        aria-multiline="true"
         data-placeholder={placeholder}
         onInput={() => {
           const html = ref.current?.innerHTML ?? "";

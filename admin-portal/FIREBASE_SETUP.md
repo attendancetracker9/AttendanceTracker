@@ -154,6 +154,7 @@ You can add initial message templates to the `templates` collection:
    - `attendance_exit`
    - `exam_alert`
    - `daily_digest`
+   - `student_progress`
 
 Each document should have:
 - `name`: Template name

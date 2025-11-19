@@ -11,7 +11,8 @@ import {
   orderBy,
   Timestamp,
   addDoc,
-  writeBatch
+  writeBatch,
+  onSnapshot
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { db, storage } from "../config/firebase";
@@ -237,6 +238,26 @@ export const notificationsService = {
         timestamp: toISO(data.timestamp)
       };
     }) as NotificationLog[];
+  },
+
+  // Real-time listener for notifications
+  subscribeToNotifications(callback: (notifications: NotificationLog[]) => void): () => void {
+    const q = query(
+      collection(db, COLLECTIONS.NOTIFICATIONS),
+      orderBy("timestamp", "desc")
+    );
+    
+    return onSnapshot(q, (snapshot) => {
+      const notifications = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          timestamp: toISO(data.timestamp)
+        };
+      }) as NotificationLog[];
+      callback(notifications);
+    });
   }
 };
 

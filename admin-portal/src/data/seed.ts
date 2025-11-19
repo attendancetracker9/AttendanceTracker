@@ -151,7 +151,16 @@ const templateMap: Record<TemplateKey, string> = {
   attendance_entry: "Hello {{1}}, {{2}} entered campus at {{3}}.",
   attendance_exit: "Hello {{1}}, {{2}} exited campus at {{3}}.",
   exam_alert: "Reminder: {{1}} exam for {{2}} is scheduled on {{3}}.",
-  daily_digest: "Daily Digest: {{1}} attended {{2}} classes today."
+  daily_digest: "Daily Digest: {{1}} attended {{2}} classes today.",
+  student_progress: "📖 Student Progress Report\n\n🧑 College Name: {{1}}\n🧑‍💻 Name: {{2}}\n🪪 Roll Number: {{3}}\n📅 Class: {{4}}\n🏫 Academic Year: {{5}}\n\n📊 Progress Summary:\n• {{6}}\n• {{7}}\n• {{8}}\n\nKindly review the performance and feel free to contact us for any clarification."
+};
+
+const templateVariables: Record<TemplateKey, string[]> = {
+  attendance_entry: ["1", "2", "3"],
+  attendance_exit: ["1", "2", "3"],
+  exam_alert: ["1", "2", "3"],
+  daily_digest: ["1", "2", "3"],
+  student_progress: ["1", "2", "3", "4", "5", "6", "7", "8"]
 };
 
 export const seededTemplates: MessageTemplate[] = (Object.entries(templateMap) as [TemplateKey, string][]).map(
@@ -161,9 +170,11 @@ export const seededTemplates: MessageTemplate[] = (Object.entries(templateMap) a
       .split("_")
       .map((part) => part[0].toUpperCase() + part.slice(1))
       .join(" "),
-    description: "Editable template using WhatsApp placeholder format.",
+    description: key === "student_progress" 
+      ? "Student progress report template with college, student details, and subject marks."
+      : "Editable template using WhatsApp placeholder format.",
     content,
-    variables: ["1", "2", "3"],
+    variables: templateVariables[key],
     lastUpdated: new Date(Date.now() - 3600 * 1000).toISOString()
   })
 );

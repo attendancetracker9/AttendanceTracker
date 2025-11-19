@@ -32,7 +32,7 @@ const PaletteIcon: React.FC<{ palette: ThemePalette }> = ({ palette }) => (
 );
 
 export const PaletteSwitcher: React.FC = () => {
-  const { palette, availablePalettes, setPaletteByKey, mode, toggleMode } = useTheme();
+  const { palette, mode, toggleMode } = useTheme();
   const [open, setOpen] = useState(false);
 
   return (
@@ -51,37 +51,10 @@ export const PaletteSwitcher: React.FC = () => {
             className="absolute right-0 z-50 mt-3 w-64 rounded-3xl border border-white/10 bg-[rgb(var(--bg-elevated))] p-4 shadow-soft"
             role="menu"
           >
-            <p className="text-xs font-semibold text-[rgb(var(--text-muted))] uppercase tracking-wide">Palettes</p>
-            <div className="mt-3 space-y-2">
-              {availablePalettes.map((item) => {
-                const active = item.key === palette.key;
-                return (
-                  <button
-                    key={item.key}
-                    type="button"
-                    onClick={() => {
-                      setPaletteByKey(item.key);
-                      setOpen(false);
-                    }}
-                    className={`focus-ring flex w-full items-center justify-between rounded-2xl border px-3 py-2 text-left transition ${
-                      active ? "border-primary/80 bg-primary/10" : "border-white/5 hover:border-white/10"
-                    }`}
-                    role="menuitemradio"
-                    aria-checked={active}
-                  >
-                    <div>
-                      <p className="text-sm font-semibold">{item.name}</p>
-                      <p className="text-xs text-[rgb(var(--text-muted))]">Light & Dark swatches</p>
-                    </div>
-                    <PaletteIcon palette={item} />
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/5 bg-white/5 px-3 py-2">
+            <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-white/5 px-3 py-2">
               <div>
                 <p className="text-sm font-semibold">Mode</p>
-                <p className="text-xs text-[rgb(var(--text-muted))]">Switch palette variant</p>
+                <p className="text-xs text-[rgb(var(--text-muted))]">Switch between Light & Dark</p>
               </div>
               <Button variant="primary" onClick={toggleMode}>
                 {mode === "dark" ? "Dark" : "Light"}

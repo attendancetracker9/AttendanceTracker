@@ -20,9 +20,9 @@ type ToastContextValue = {
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 
 const statusColors: Record<ToastStatus, string> = {
-  success: "bg-emerald-500/20 border-emerald-400 text-emerald-100",
-  error: "bg-rose-500/20 border-rose-400 text-rose-100",
-  info: "bg-sky-500/20 border-sky-400 text-sky-100"
+  success: "bg-emerald-600 border-emerald-400 text-white backdrop-blur-sm",
+  error: "bg-rose-600 border-rose-400 text-white backdrop-blur-sm",
+  info: "bg-sky-600 border-sky-400 text-white backdrop-blur-sm"
 };
 
 export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -54,19 +54,20 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 onAnimationComplete={() => {
                   setTimeout(() => dismiss(toast.id), 3500);
                 }}
-                className={`pointer-events-auto rounded-2xl border px-4 py-3 shadow-soft ${statusColors[toast.status]}`}
+                className={`pointer-events-auto rounded-2xl border-2 px-5 py-4 shadow-lg ${statusColors[toast.status]}`}
                 role="status"
                 aria-live="polite"
               >
                 <div className="flex items-start gap-3">
                   <div className="flex-1">
-                    {toast.title && <p className="text-sm font-semibold">{toast.title}</p>}
-                    {toast.description && <p className="text-sm text-slate-200">{toast.description}</p>}
+                    {toast.title && <p className="text-base font-bold mb-1">{toast.title}</p>}
+                    {toast.description && <p className="text-sm leading-relaxed opacity-95">{toast.description}</p>}
                   </div>
                   <button
                     type="button"
                     onClick={() => dismiss(toast.id)}
-                    className="rounded-full p-1 text-xs text-slate-200 transition hover:bg-white/10"
+                    className="rounded-full p-1.5 text-base font-bold transition hover:bg-white/20 hover:scale-110 flex-shrink-0"
+                    aria-label="Dismiss notification"
                   >
                     ×
                   </button>

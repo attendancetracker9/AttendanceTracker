@@ -117,7 +117,7 @@ export type NotificationLog = {
   errorText?: string;
 };
 
-export type TemplateKey = "attendance_entry" | "attendance_exit" | "exam_alert" | "daily_digest";
+export type TemplateKey = "attendance_entry" | "attendance_exit" | "exam_alert" | "daily_digest" | "student_progress";
 
 export type MessageTemplate = {
   key: TemplateKey;
@@ -140,7 +140,7 @@ export type ProviderSettings = {
 
 export type ThemeMode = "light" | "dark";
 
-export type ThemePaletteKey = "softPink" | "warmCreme" | "offWhite" | "deepIndigo" | "tealSunrise";
+export type ThemePaletteKey = "tealSunrise";
 
 export type ThemeVariant = Record<string, string>;
 

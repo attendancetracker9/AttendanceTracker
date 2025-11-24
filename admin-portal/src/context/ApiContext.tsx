@@ -30,7 +30,7 @@ type ApiContextValue = {
   setRosterUploadState: (state: RosterUploadState) => void;
   updateRosterMapping: (mapping: Record<string, string>) => Promise<void>;
   updateRosterRows: (rows: RosterRow[]) => void;
-  mapRosterColumns: (mapping: Record<string, string>, rows: RosterRow[]) => RosterRow[];
+  mapRosterColumns: (mapping: Record<string, string>, rows: RosterRow[]) => Promise<RosterRow[]>;
   saveRoster: (rows: RosterRow[]) => Promise<{ successCount: number; failureCount: number }>;
   createAnnouncement: (payload: Partial<Announcement>) => Promise<Announcement>;
   submitFacultyAnnouncement: (payload: Partial<Announcement>) => Promise<Announcement>;
@@ -41,6 +41,14 @@ type ApiContextValue = {
   updateSettings: (settings: Partial<ProviderSettings>) => Promise<ProviderSettings>;
   updateTemplate: (key: string, content: string) => Promise<MessageTemplate>;
   clearRosterPreview: () => void;
+  quickSendAnnouncement: (payload: {
+    title: string;
+    message: string;
+    targetScope?: "All" | "Class" | "Section" | "Custom";
+    classes?: string[];
+    sections?: string[];
+    customRecipients?: string[];
+  }) => Promise<{ announcement: Announcement; sentCount: number; totalCount: number; failedCount: number }>;
 };
 
 const ApiContext = createContext<ApiContextValue | undefined>(undefined);
@@ -205,6 +213,13 @@ export const ApiProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const updated = await firebaseApi.updateTemplate(key, content);
         setTemplates((prev) => prev.map((template) => (template.key === updated.key ? updated : template)));
         return updated;
+      },
+      quickSendAnnouncement: async (payload) => {
+        const result = await firebaseApi.quickSendAnnouncement(payload);
+        setAnnouncements((prev) => [result.announcement, ...prev]);
+        const notifications = await firebaseApi.listNotifications();
+        setNotifications(notifications);
+        return result;
       }
     }),
     [announcements, notifications, rosterUpload, settings, students, templates]

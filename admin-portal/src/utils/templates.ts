@@ -9,7 +9,7 @@ export const applyTemplate = (
   template.variables.forEach((variable) => {
     const token = `{{${variable}}}`;
     if (values[variable]) {
-      message = message.replaceAll(token, values[variable]);
+      message = message.split(token).join(values[variable]);
       unresolved.delete(variable);
     }
   });

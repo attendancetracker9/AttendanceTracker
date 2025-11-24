@@ -61,7 +61,8 @@ export const Announcements: React.FC = () => {
     createAnnouncement,
     submitFacultyAnnouncement,
     approveAnnouncement,
-    rejectAnnouncement
+    rejectAnnouncement,
+    quickSendAnnouncement
   } = useApi();
   const { push } = useToast();
   const [editor, setEditor] = useState<EditorState>(defaultEditorState);
@@ -70,6 +71,7 @@ export const Announcements: React.FC = () => {
   const [decisionMode, setDecisionMode] = useState<"Approve" | "Reject">("Approve");
   const [decisionReason, setDecisionReason] = useState("");
   const [loading, setLoading] = useState(false);
+  const [quickSending, setQuickSending] = useState(false);
 
   const pendingAnnouncements = useMemo(
     () => announcements.filter((item) => item.status === "Pending"),
@@ -142,6 +144,42 @@ export const Announcements: React.FC = () => {
     }
   };
 
+  const handleQuickSend = async () => {
+    if (!editor.title || !editor.plain) {
+      push({ status: "error", title: "Missing information", description: "Please enter a title and message before sending." });
+      return;
+    }
+
+    setQuickSending(true);
+    try {
+      const result = await quickSendAnnouncement({
+        title: editor.title,
+        message: editor.plain,
+        targetScope: editor.targetScope,
+        classes: editor.classes,
+        sections: editor.sections,
+        customRecipients: editor.customRecipients
+      });
+      
+      push({
+        status: "success",
+        title: "Messages sent!",
+        description: `Sent to ${result.sentCount} of ${result.totalCount} recipients via SMS.`
+      });
+      
+      // Clear editor after successful send
+      setEditor(defaultEditorState);
+    } catch (error) {
+      push({
+        status: "error",
+        title: "Failed to send",
+        description: (error as Error).message
+      });
+    } finally {
+      setQuickSending(false);
+    }
+  };
+
   const submitFaculty = async () => {
     if (!facultyMessage.title || !facultyMessage.body) {
       push({ status: "error", title: "Fill required fields", description: "Faculty title and body required." });
@@ -154,7 +192,8 @@ export const Announcements: React.FC = () => {
         htmlContent: `<p>${facultyMessage.body}</p>`,
         plainText: facultyMessage.body,
         channels: ["WhatsApp"],
-        target: { scope: "All" }
+        target: { scope: "All" },
+        schedule: { type: "Now" } // Explicitly set schedule to avoid undefined datetime
       });
       push({ status: "success", title: "Faculty submission queued", description: "Pending admin review." });
       setFacultyMessage({ title: "", body: "" });
@@ -194,9 +233,14 @@ export const Announcements: React.FC = () => {
               <h2 className="text-lg font-semibold text-[rgb(var(--text-primary))]">Create Announcement</h2>
               <p className="text-sm text-[rgb(var(--text-muted))]">Rich text, attachments, targets, and channels.</p>
             </div>
-            <Button variant="primary" onClick={submitAnnouncement} disabled={loading}>
-              Save Draft
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={submitAnnouncement} disabled={loading || quickSending}>
+                Save Draft
+              </Button>
+              <Button variant="primary" onClick={handleQuickSend} disabled={loading || quickSending}>
+                {quickSending ? "Sending..." : "Quick Send"}
+              </Button>
+            </div>
           </div>
           <div className="mt-4 space-y-4">
             <Input

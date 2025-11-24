@@ -1,13 +1,14 @@
-import { motion } from "framer-motion";
+import { motion, type HTMLMotionProps } from "framer-motion";
 import React from "react";
 import { clsx } from "clsx";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
 
-type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+type ButtonProps = Omit<HTMLMotionProps<"button">, "children"> & {
   variant?: ButtonVariant;
   icon?: React.ReactNode;
   fullWidth?: boolean;
+  children?: React.ReactNode;
 };
 
 const variantClasses: Record<ButtonVariant, string> = {

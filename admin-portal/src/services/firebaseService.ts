@@ -47,6 +47,36 @@ const toTimestamp = (value: string | Date): Timestamp => {
   return Timestamp.fromDate(new Date(value));
 };
 
+// Schedule serialization helpers
+type FirestoreSchedule = {
+  type: Announcement["schedule"]["type"];
+  datetime?: Timestamp;
+};
+
+const serializeSchedule = (schedule: Announcement["schedule"]): FirestoreSchedule => {
+  const serialized: FirestoreSchedule = {
+    type: schedule?.type ?? "Now"
+  };
+
+  // Only include datetime if schedule type is "Later" and datetime exists
+  if (schedule?.type === "Later" && schedule.datetime) {
+    serialized.datetime = toTimestamp(schedule.datetime);
+  }
+
+  return serialized;
+};
+
+const deserializeSchedule = (schedule?: FirestoreSchedule): Announcement["schedule"] => {
+  if (!schedule) {
+    return { type: "Now" };
+  }
+
+  return {
+    type: schedule.type,
+    ...(schedule.datetime ? { datetime: toISO(schedule.datetime) } : {})
+  };
+};
+
 // ==================== STUDENTS ====================
 export const studentsService = {
   async getAll(): Promise<Student[]> {
@@ -120,10 +150,7 @@ export const announcementsService = {
         ...data,
         createdAt: toISO(data.createdAt),
         updatedAt: toISO(data.updatedAt),
-        schedule: {
-          ...data.schedule,
-          datetime: data.schedule?.datetime ? toISO(data.schedule.datetime) : undefined
-        }
+        schedule: deserializeSchedule(data.schedule)
       };
     }) as Announcement[];
   },
@@ -138,10 +165,7 @@ export const announcementsService = {
       ...data,
       createdAt: toISO(data.createdAt),
       updatedAt: toISO(data.updatedAt),
-      schedule: {
-        ...data.schedule,
-        datetime: data.schedule?.datetime ? toISO(data.schedule.datetime) : undefined
-      }
+      schedule: deserializeSchedule(data.schedule)
     } as Announcement;
   },
 
@@ -150,10 +174,7 @@ export const announcementsService = {
       ...announcement,
       createdAt: toTimestamp(announcement.createdAt),
       updatedAt: toTimestamp(announcement.updatedAt),
-      schedule: {
-        ...announcement.schedule,
-        datetime: announcement.schedule?.datetime ? toTimestamp(announcement.schedule.datetime) : undefined
-      }
+      schedule: serializeSchedule(announcement.schedule)
     });
     return docRef.id;
   },
@@ -164,11 +185,8 @@ export const announcementsService = {
     
     if (data.updatedAt) updateData.updatedAt = toTimestamp(data.updatedAt);
     if (data.createdAt) updateData.createdAt = toTimestamp(data.createdAt);
-    if (data.schedule?.datetime) {
-      updateData.schedule = {
-        ...data.schedule,
-        datetime: toTimestamp(data.schedule.datetime)
-      };
+    if (data.schedule) {
+      updateData.schedule = serializeSchedule(data.schedule);
     }
 
     await updateDoc(docRef, updateData);
@@ -209,10 +227,18 @@ export const notificationsService = {
   },
 
   async create(notification: Omit<NotificationLog, "id">): Promise<string> {
-    const docRef = await addDoc(collection(db, COLLECTIONS.NOTIFICATIONS), {
+    // Remove undefined fields before saving (Firestore doesn't allow undefined)
+    const cleanNotification: any = {
       ...notification,
       timestamp: toTimestamp(notification.timestamp)
-    });
+    };
+    
+    // Remove undefined errorText field
+    if (cleanNotification.errorText === undefined) {
+      delete cleanNotification.errorText;
+    }
+    
+    const docRef = await addDoc(collection(db, COLLECTIONS.NOTIFICATIONS), cleanNotification);
     return docRef.id;
   },
 
@@ -220,6 +246,12 @@ export const notificationsService = {
     const docRef = doc(db, COLLECTIONS.NOTIFICATIONS, id);
     const updateData: any = { ...data };
     if (data.timestamp) updateData.timestamp = toTimestamp(data.timestamp);
+    
+    // Remove undefined errorText field (Firestore doesn't allow undefined)
+    if (updateData.errorText === undefined) {
+      delete updateData.errorText;
+    }
+    
     await updateDoc(docRef, updateData);
   },
 
@@ -268,12 +300,11 @@ export const templatesService = {
     return snapshot.docs.map((doc) => {
       const data = doc.data();
       return {
-        id: doc.id,
         key: doc.id as MessageTemplate["key"],
-        ...data,
+        ...(data as Omit<MessageTemplate, "key" | "lastUpdated">),
         lastUpdated: toISO(data.lastUpdated)
-      };
-    }) as MessageTemplate[];
+      } satisfies MessageTemplate;
+    });
   },
 
   async getByKey(key: string): Promise<MessageTemplate | null> {

@@ -15,6 +15,7 @@ import {
   settingsService
 } from "../services/firebaseService";
 import { mockApi } from "./mockApi";
+import { sendBulkSMS } from "../services/fast2smsService";
 
 // Firebase API adapter - uses Firebase for data storage, mockApi for file parsing
 export const firebaseApi = {
@@ -223,10 +224,15 @@ export const firebaseApi = {
         status: "sent"
       });
       setTimeout(async () => {
-        await notificationsService.update(id, {
-          status: Math.random() > 0.1 ? "delivered" : "failed",
-          errorText: Math.random() > 0.1 ? undefined : "Provider timeout"
-        });
+        const isFailed = Math.random() > 0.1;
+        const updateData: any = {
+          status: isFailed ? "failed" : "delivered"
+        };
+        // Only add errorText if status is failed (Firestore doesn't allow undefined)
+        if (isFailed) {
+          updateData.errorText = "Provider timeout";
+        }
+        await notificationsService.update(id, updateData);
       }, 200);
     }, 200);
 
@@ -259,6 +265,166 @@ export const firebaseApi = {
     });
 
     return (await templatesService.getByKey(key))!;
+  },
+
+  // Quick Send - Send announcement immediately via SMS
+  async quickSendAnnouncement(payload: {
+    title: string;
+    message: string;
+    targetScope?: "All" | "Class" | "Section" | "Custom";
+    classes?: string[];
+    sections?: string[];
+    customRecipients?: string[];
+  }) {
+    // Get settings to retrieve Fast2SMS API key
+    const settings = await settingsService.get();
+    
+    if (!settings.smsApiKey) {
+      throw new Error("SMS API key not configured. Please set it in Settings.");
+    }
+
+    // Get all students
+    const students = await studentsService.getAll();
+
+    // Filter students based on target
+    let targets: Student[] = [];
+    if (!payload.targetScope || payload.targetScope === "All") {
+      targets = students;
+    } else if (payload.targetScope === "Class") {
+      targets = students.filter((s) => payload.classes?.includes(s.class));
+    } else if (payload.targetScope === "Section") {
+      targets = students.filter((s) =>
+        payload.sections?.includes(`${s.class}-${s.section}`)
+      );
+    } else if (payload.targetScope === "Custom") {
+      targets = students.filter((s) =>
+        payload.customRecipients?.includes(s.parentPrimaryPhone)
+      );
+    }
+
+    if (targets.length === 0) {
+      throw new Error("No recipients found for the selected target.");
+    }
+
+    // Extract phone numbers
+    const phoneNumbers = targets
+      .map((s) => s.parentPrimaryPhone)
+      .filter((phone) => phone && phone.trim().length > 0);
+
+    if (phoneNumbers.length === 0) {
+      throw new Error("No valid phone numbers found in student data.");
+    }
+
+    // Prepare message
+    const message = `${payload.title}\n\n${payload.message}`;
+
+    // Send SMS via Fast2SMS
+    let smsResults;
+    try {
+      smsResults = await sendBulkSMS(settings.smsApiKey, message, phoneNumbers);
+    } catch (error) {
+      throw new Error(`Failed to send SMS: ${error instanceof Error ? error.message : "Unknown error"}`);
+    }
+
+    // Create announcement record
+    const now = new Date().toISOString();
+    const announcement: Omit<Announcement, "id"> = {
+      title: payload.title,
+      htmlContent: `<p>${payload.message.replace(/\n/g, "<br>")}</p>`,
+      plainText: payload.message,
+      target: {
+        scope: payload.targetScope || "All",
+        classes: payload.classes || [],
+        sections: payload.sections || [],
+        customRecipients: payload.customRecipients || []
+      },
+      channels: ["SMS"],
+      priority: "Normal",
+      schedule: { type: "Now" },
+      status: "Sent",
+      authorType: "Admin",
+      authorName: "Admin",
+      attachments: [],
+      createdAt: now,
+      updatedAt: now
+    };
+
+    const announcementId = await announcementsService.create(announcement);
+
+    // Create notification logs for tracking
+    const notifications: Omit<NotificationLog, "id">[] = [];
+    const successfulNumbers = new Set<string>();
+    const failedBatches: number[] = [];
+    
+    // Track successful sends from SMS results
+    // Fast2SMS returns success when result.return === true
+    smsResults.forEach((result, batchIndex) => {
+      if (result.return === true) {
+        // Extract numbers from this batch (6 per batch by default)
+        const batchSize = 6;
+        const batchStart = batchIndex * batchSize;
+        const batchNumbers = phoneNumbers.slice(batchStart, batchStart + batchSize);
+        batchNumbers.forEach((phone) => successfulNumbers.add(phone));
+      } else {
+        // Track failed batches
+        failedBatches.push(batchIndex);
+        console.error(`Batch ${batchIndex + 1} failed:`, result.message || "Unknown error");
+      }
+    });
+
+    // Create notification logs for all targets
+    for (const student of targets) {
+      const phone = student.parentPrimaryPhone;
+      const wasSuccessful = successfulNumbers.has(phone);
+      
+      // Get error message from failed batch if applicable
+      let errorText: string | undefined = undefined;
+      if (!wasSuccessful) {
+        // Find which batch this phone number belongs to
+        const phoneIndex = phoneNumbers.indexOf(phone);
+        const batchIndex = Math.floor(phoneIndex / 6);
+        if (failedBatches.includes(batchIndex) && smsResults[batchIndex]) {
+          const errorMsg = smsResults[batchIndex].message;
+          errorText = Array.isArray(errorMsg) ? errorMsg.join(", ") : "SMS send failed";
+        } else {
+          errorText = "SMS send failed";
+        }
+      }
+      
+      // Build notification object, only include errorText if it exists
+      const notification: Omit<NotificationLog, "id"> = {
+        timestamp: now,
+        studentId: student.studentId,
+        studentName: `${student.firstName} ${student.lastName}`,
+        class: student.class,
+        section: student.section,
+        parentPhone: phone,
+        channel: "SMS",
+        provider: settings.smsProvider || "Fast2SMS",
+        providerMessageId: smsResults[0]?.request_id || `MSG-${nanoid(6)}`,
+        status: wasSuccessful ? "sent" : "failed",
+        attempts: 1
+      };
+      
+      // Only add errorText if it's defined (Firestore doesn't allow undefined)
+      if (errorText) {
+        notification.errorText = errorText;
+      }
+      
+      notifications.push(notification);
+    }
+
+    // Save notifications to Firebase
+    for (const notification of notifications) {
+      await notificationsService.create(notification);
+    }
+
+    return {
+      announcement: { ...announcement, id: announcementId } as Announcement,
+      sentCount: successfulNumbers.size,
+      totalCount: targets.length,
+      failedCount: targets.length - successfulNumbers.size
+    };
   }
 };
 
